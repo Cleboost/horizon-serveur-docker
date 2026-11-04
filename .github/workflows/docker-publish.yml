@@ -1,0 +1,71 @@
+name: Build and push image
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - Dockerfile
+      - entrypoint.sh
+      - versions.env
+      - .github/workflows/docker-publish.yml
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+  CACHE_SCOPE: horizon-server-build
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lire versions.env
+        run: |
+          set -a
+          # shellcheck disable=SC1091
+          source versions.env
+          set +a
+          echo "HORIZON_GIT_REF=nightly" >> "$GITHUB_ENV"
+          echo "IMAGE_REVISION=$IMAGE_REVISION" >> "$GITHUB_ENV"
+          echo "VERSION_TAG=nightly-r${IMAGE_REVISION}" >> "$GITHUB_ENV"
+
+      - name: SHA du tag nightly (Horizon)
+        run: |
+          sha=$(git ls-remote https://github.com/horizon-rust/horizon.git refs/tags/nightly | awk '{print $1}')
+          [ -n "$sha" ] || { echo "tag nightly introuvable" >&2; exit 1; }
+          echo "HORIZON_SOURCE_SHA=$sha" >> "$GITHUB_ENV"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION_TAG }}
+          labels: |
+            io.horizon.git-ref=${{ env.HORIZON_GIT_REF }}
+            io.horizon.image.revision=${{ env.IMAGE_REVISION }}
+            io.horizon.source.sha=${{ env.HORIZON_SOURCE_SHA }}
+          build-args: |
+            HORIZON_GIT_REF=${{ env.HORIZON_GIT_REF }}
+            HORIZON_SOURCE_SHA=${{ env.HORIZON_SOURCE_SHA }}
+            IMAGE_REVISION=${{ env.IMAGE_REVISION }}
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+            type=gha,scope=${{ env.CACHE_SCOPE }}
+          cache-to: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max,compression=zstd,oci-mediatypes=true
+            type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
