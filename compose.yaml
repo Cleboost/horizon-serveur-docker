@@ -12,7 +12,8 @@ services:
       - "25565:25565"
     stop_grace_period: 180s
     volumes:
-      - horizon-data:/data
+      # World, server.toml, logs — same folder as this compose file (./data)
+      - ./data:/data
       - ./prepared-26.3:/opt/horizon/.local/horizon-client/26.3:ro
     environment:
       HORIZON_EULA: "true"
@@ -20,6 +21,8 @@ services:
       HORIZON_PORT: "25565"
       HORIZON_WHITELIST: "true"
       HORIZON_ONLINE: "true"
+      # HORIZON_WHITELIST: "false"  → --no-whitelist + server.whitelist=false
+      # HORIZON_ONLINE: "false"      → --offline + server.online_mode=false
       # HORIZON_SEED: "12345"
       # HORIZON_PLAYERS: "Steve,Alex"
       # HORIZON_OP: "Steve"
@@ -29,6 +32,3 @@ services:
       # HORIZON_PANEL_BIND: "0.0.0.0:8130"
       # HORIZON_PANEL_ALLOW_PUBLIC: "true"
       # HORIZON_CONFIG: "properties.spawn-protection=16"
-
-volumes:
-  horizon-data:

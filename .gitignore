@@ -1,3 +1,5 @@
 .env
 prepared-26.3/*
 !prepared-26.3/.gitkeep
+data/*
+!data/.gitkeep
