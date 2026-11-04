@@ -1,13 +1,15 @@
 # syntax=docker/dockerfile:1
-# Prebuilt horizon-server-linux-x86_64 tarball from GitHub (no Rust compile in CI).
+# amd64: official horizon-server-linux-x86_64 tarball.
+# arm64: compile at HORIZON_SOURCE_SHA (Horizon ships no Linux ARM server tarball yet).
+# Build: --target runtime-amd64 | runtime-arm64 (CI merges both into one manifest).
 
 ARG HORIZON_GIT_REF=nightly
 ARG HORIZON_SOURCE_SHA=
+ARG HORIZON_VERSION=nightly
 ARG IMAGE_REVISION=0
 
-FROM debian:bookworm-slim AS horizon
+FROM debian:bookworm-slim AS horizon-fetch
 ARG HORIZON_GIT_REF
-ARG HORIZON_SOURCE_SHA
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -26,15 +28,49 @@ RUN set -eu; \
     curl -fL --progress-bar -o "/tmp/${ASSET}" "$URL"; \
     GOT=$(sha256sum "/tmp/${ASSET}" | awk '{print $1}'); \
     [ "$GOT" = "$EXPECT" ] || { echo "SHA-256 mismatch (got $GOT, expected $EXPECT)" >&2; exit 1; }; \
-    mkdir -p /tmp/x /out; \
-    tar xzf "/tmp/${ASSET}" -C /tmp/x; \
-    SRC=$(dirname "$(find /tmp/x -name horizon-server -type f | head -n1)"); \
+    mkdir -p /extract; \
+    tar xzf "/tmp/${ASSET}" -C /extract
+
+FROM debian:bookworm-slim AS horizon-amd64
+ARG HORIZON_SOURCE_SHA=
+COPY --from=horizon-fetch /extract /extract
+RUN set -eu; \
+    SRC=$(dirname "$(find /extract -name horizon-server -type f | head -n1)"); \
     [ -n "$SRC" ] || { echo "horizon-server not found in archive" >&2; exit 1; }; \
+    mkdir -p /out; \
     cp -a "${SRC}/." /out/; \
-    [ -x /out/horizon-server ] && { [ -x /out/horizon-engine ] || [ -x /out/horizon-client ]; } || { echo "incomplete server binaries" >&2; exit 1; }; \
+    [ -x /out/horizon-server ] && { [ -x /out/horizon-engine ] || [ -x /out/horizon-client ]; } \
+      || { echo "incomplete server binaries" >&2; exit 1; }; \
     printf 'pin=%s\n' "${HORIZON_SOURCE_SHA:-latest}" > /out/.horizon-source-pin
 
-FROM debian:bookworm-slim
+FROM rust:1-slim-bookworm AS horizon-arm64
+ARG HORIZON_SOURCE_SHA
+ARG HORIZON_VERSION
+ENV HORIZON_VERSION=${HORIZON_VERSION}
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+      git ca-certificates pkg-config libssl-dev libasound2-dev libudev-dev \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /build
+RUN set -eu; \
+    [ -n "${HORIZON_SOURCE_SHA}" ] || { echo "HORIZON_SOURCE_SHA required for arm64 build" >&2; exit 1; }; \
+    git clone --filter=blob:none --no-checkout https://github.com/horizon-rust/horizon.git .; \
+    git checkout "${HORIZON_SOURCE_SHA}"
+COPY --from=horizon-fetch /extract/horizon-server-linux-x86_64/exporters ./exporters
+RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
+    --mount=type=cache,target=/build/target,sharing=locked \
+    set -eu; \
+    cargo build --release --locked -p horizon-server --bin horizon-server; \
+    cargo build --release --locked -p horizon-prepare --bin horizon-prepare; \
+    cargo build --release --locked -p horizon-client --no-default-features --bin horizon-client; \
+    cargo run --locked -p xtask -- package-server target/release/horizon-client /tmp/pkg; \
+    mkdir -p /out; \
+    cp -a /tmp/pkg/. /out/; \
+    [ -x /out/horizon-server ] && [ -x /out/horizon-engine ] \
+      || { echo "incomplete arm64 server bundle" >&2; exit 1; }; \
+    printf 'pin=%s\n' "${HORIZON_SOURCE_SHA}" > /out/.horizon-source-pin
+
+FROM debian:bookworm-slim AS runtime-base
 ARG HORIZON_GIT_REF
 ARG HORIZON_SOURCE_SHA
 ARG IMAGE_REVISION
@@ -50,7 +86,6 @@ RUN apt-get update \
     && useradd --system --home-dir /data --shell /usr/sbin/nologin horizon \
     && mkdir -p /data /opt/horizon/.local/horizon-client \
     && chown horizon:horizon /data
-COPY --from=horizon /out/ /opt/horizon/
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENV PATH=/opt/horizon:$PATH \
@@ -61,3 +96,12 @@ EXPOSE 25565 8130
 USER horizon
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["/entrypoint.sh"]
+
+FROM runtime-base AS runtime-amd64
+COPY --from=horizon-amd64 /out/ /opt/horizon/
+
+FROM runtime-base AS runtime-arm64
+COPY --from=horizon-arm64 /out/ /opt/horizon/
+
+# Local default: amd64 tarball path.
+FROM runtime-amd64

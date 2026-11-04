@@ -15,70 +15,134 @@ env:
   CACHE_SCOPE: horizon-server-build
 
 jobs:
-  build:
+  meta:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
+    outputs:
+      image_name: ${{ steps.names.outputs.image_name }}
+      horizon_git_ref: nightly
+      horizon_source_sha: ${{ steps.horizon.outputs.sha }}
+      horizon_source_short: ${{ steps.horizon.outputs.short }}
+      horizon_version: ${{ steps.horizon.outputs.version }}
+      image_revision: ${{ steps.versions.outputs.image_revision }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: GHCR image name (lowercase)
-        run: echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
-
-      - name: Load versions.env
+      - id: names
+        run: echo "image_name=${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - id: versions
         run: |
           set -a
           # shellcheck disable=SC1091
           source versions.env
           set +a
-          echo "HORIZON_GIT_REF=nightly" >> "$GITHUB_ENV"
-          echo "IMAGE_REVISION=$IMAGE_REVISION" >> "$GITHUB_ENV"
-
-      - name: Resolve Horizon nightly SHA
+          echo "image_revision=$IMAGE_REVISION" >> "$GITHUB_OUTPUT"
+      - id: horizon
         run: |
           sha=$(git ls-remote https://github.com/horizon-rust/horizon.git refs/tags/nightly | awk '{print $1}')
           [ -n "$sha" ] || { echo "nightly tag not found" >&2; exit 1; }
           short=${sha:0:7}
-          echo "HORIZON_SOURCE_SHA=$sha" >> "$GITHUB_ENV"
-          echo "HORIZON_SOURCE_SHORT=$short" >> "$GITHUB_ENV"
+          JSON=$(curl -fsSL -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/horizon-rust/horizon/releases/tags/nightly")
+          version=$(printf '%s\n' "$JSON" | sed -n \
+            's/^  "name": "Nightly \([0-9-]\{10\}\) · \([0-9a-f]\{1,7\}\)".*/nightly-\1-\2/p' | head -n1)
+          [ -n "$version" ] || version="nightly"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "short=$short" >> "$GITHUB_OUTPUT"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
           {
-            echo "### Image tags"
-            echo "- \`nightly\` — latest build"
+            echo "### Image tags (linux/amd64 + linux/arm64)"
+            echo "- \`nightly\` — manifest list"
             echo "- \`nightly-${short}\` — Horizon \`${sha}\`"
-            echo "- \`nightly-${short}-r${IMAGE_REVISION}\` — pinned (upstream + Docker revision)"
+            echo "- \`nightly-${short}-r${{ steps.versions.outputs.image_revision }}\` — pinned packaging"
+            echo "- amd64: upstream tarball · arm64: compile \`${version}\` at \`${short}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
+  build-amd64:
+    needs: meta
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - uses: docker/build-push-action@v6
         with:
           context: .
+          target: runtime-amd64
+          platforms: linux/amd64
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly-${{ env.HORIZON_SOURCE_SHORT }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly-${{ env.HORIZON_SOURCE_SHORT }}-r${{ env.IMAGE_REVISION }}
-          labels: |
-            org.opencontainers.image.version=nightly-${{ env.HORIZON_SOURCE_SHORT }}-r${{ env.IMAGE_REVISION }}
-            io.horizon.git-ref=${{ env.HORIZON_GIT_REF }}
-            io.horizon.source.sha=${{ env.HORIZON_SOURCE_SHA }}
-            io.horizon.source.short=${{ env.HORIZON_SOURCE_SHORT }}
-            io.horizon.image.revision=${{ env.IMAGE_REVISION }}
+          tags: ${{ env.REGISTRY }}/${{ needs.meta.outputs.image_name }}:build-amd64
           build-args: |
-            HORIZON_GIT_REF=${{ env.HORIZON_GIT_REF }}
-            HORIZON_SOURCE_SHA=${{ env.HORIZON_SOURCE_SHA }}
-            IMAGE_REVISION=${{ env.IMAGE_REVISION }}
+            HORIZON_GIT_REF=${{ needs.meta.outputs.horizon_git_ref }}
+            HORIZON_SOURCE_SHA=${{ needs.meta.outputs.horizon_source_sha }}
+            HORIZON_VERSION=${{ needs.meta.outputs.horizon_version }}
+            IMAGE_REVISION=${{ needs.meta.outputs.image_revision }}
           cache-from: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
-            type=gha,scope=${{ env.CACHE_SCOPE }}
+            type=registry,ref=${{ env.REGISTRY }}/${{ needs.meta.outputs.image_name }}:buildcache-amd64
+            type=gha,scope=${{ env.CACHE_SCOPE }}-amd64
           cache-to: |
-            type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max,compression=zstd,oci-mediatypes=true
-            type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
+            type=registry,ref=${{ env.REGISTRY }}/${{ needs.meta.outputs.image_name }}:buildcache-amd64,mode=max,compression=zstd,oci-mediatypes=true
+            type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}-amd64
+
+  build-arm64:
+    needs: meta
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 180
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runtime-arm64
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ needs.meta.outputs.image_name }}:build-arm64
+          build-args: |
+            HORIZON_GIT_REF=${{ needs.meta.outputs.horizon_git_ref }}
+            HORIZON_SOURCE_SHA=${{ needs.meta.outputs.horizon_source_sha }}
+            HORIZON_VERSION=${{ needs.meta.outputs.horizon_version }}
+            IMAGE_REVISION=${{ needs.meta.outputs.image_revision }}
+          cache-from: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ needs.meta.outputs.image_name }}:buildcache-arm64
+            type=gha,scope=${{ env.CACHE_SCOPE }}-arm64
+          cache-to: |
+            type=registry,ref=${{ env.REGISTRY }}/${{ needs.meta.outputs.image_name }}:buildcache-arm64,mode=max,compression=zstd,oci-mediatypes=true
+            type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}-arm64
+
+  merge:
+    needs: [meta, build-amd64, build-arm64]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish multi-arch manifest
+        run: |
+          repo=${{ env.REGISTRY }}/${{ needs.meta.outputs.image_name }}
+          short=${{ needs.meta.outputs.horizon_source_short }}
+          rev=${{ needs.meta.outputs.image_revision }}
+          docker buildx imagetools create \
+            -t "${repo}:nightly" \
+            -t "${repo}:nightly-${short}" \
+            -t "${repo}:nightly-${short}-r${rev}" \
+            "${repo}:build-amd64" \
+            "${repo}:build-arm64"
