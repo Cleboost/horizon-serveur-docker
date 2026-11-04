@@ -1,4 +1,4 @@
-# Game files: copy horizon-prepare 26.3 output into ./prepared-26.3/ then docker compose up -d
+# Game files: just prepare (writes ./prepared-26.3/) then docker compose up -d
 
 name: horizon-server
 
