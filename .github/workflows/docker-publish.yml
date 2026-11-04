@@ -24,10 +24,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Nom image GHCR (minuscules obligatoires)
+      - name: GHCR image name (lowercase)
         run: echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
 
-      - name: Lire versions.env
+      - name: Load versions.env
         run: |
           set -a
           # shellcheck disable=SC1091
@@ -36,18 +36,18 @@ jobs:
           echo "HORIZON_GIT_REF=nightly" >> "$GITHUB_ENV"
           echo "IMAGE_REVISION=$IMAGE_REVISION" >> "$GITHUB_ENV"
 
-      - name: SHA du tag nightly (Horizon)
+      - name: Resolve Horizon nightly SHA
         run: |
           sha=$(git ls-remote https://github.com/horizon-rust/horizon.git refs/tags/nightly | awk '{print $1}')
-          [ -n "$sha" ] || { echo "tag nightly introuvable" >&2; exit 1; }
+          [ -n "$sha" ] || { echo "nightly tag not found" >&2; exit 1; }
           short=${sha:0:7}
           echo "HORIZON_SOURCE_SHA=$sha" >> "$GITHUB_ENV"
           echo "HORIZON_SOURCE_SHORT=$short" >> "$GITHUB_ENV"
           {
-            echo "### Tags image"
-            echo "- \`nightly\` — dernier build (pull latest)"
+            echo "### Image tags"
+            echo "- \`nightly\` — latest build"
             echo "- \`nightly-${short}\` — Horizon \`${sha}\`"
-            echo "- \`nightly-${short}-r${IMAGE_REVISION}\` — immuable (upstream + révision Docker)"
+            echo "- \`nightly-${short}-r${IMAGE_REVISION}\` — pinned (upstream + Docker revision)"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: docker/setup-buildx-action@v3

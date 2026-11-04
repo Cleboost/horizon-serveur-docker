@@ -1,9 +1,5 @@
 # syntax=docker/dockerfile:1
-# Binaires = tarball officielle horizon-server-linux-x86_64 (Nightly GitHub).
-# Pas de compile Rust ici : le serveur tourne avec horizon-engine (= client sans audio/contrôleurs),
-# déjà buildé par Horizon ; compiler nous-mêmes retombe sur horizon-client-render, symphonia, etc.
-#
-# Build local : just build
+# Prebuilt horizon-server-linux-x86_64 tarball from GitHub (no Rust compile in CI).
 
 ARG HORIZON_GIT_REF=nightly
 ARG HORIZON_SOURCE_SHA=
@@ -26,16 +22,16 @@ RUN set -eu; \
       END { print url; print digest }'); \
     URL=$(printf '%s\n' "$FIELDS" | sed -n '1p'); \
     EXPECT=$(printf '%s\n' "$FIELDS" | sed -n '2p'); \
-    [ -n "$URL" ] && [ -n "$EXPECT" ] || { echo "asset $ASSET introuvable sur release ${HORIZON_GIT_REF}" >&2; exit 1; }; \
+    [ -n "$URL" ] && [ -n "$EXPECT" ] || { echo "missing asset $ASSET on release ${HORIZON_GIT_REF}" >&2; exit 1; }; \
     curl -fL --progress-bar -o "/tmp/${ASSET}" "$URL"; \
     GOT=$(sha256sum "/tmp/${ASSET}" | awk '{print $1}'); \
-    [ "$GOT" = "$EXPECT" ] || { echo "SHA-256 invalide (got $GOT, expected $EXPECT)" >&2; exit 1; }; \
+    [ "$GOT" = "$EXPECT" ] || { echo "SHA-256 mismatch (got $GOT, expected $EXPECT)" >&2; exit 1; }; \
     mkdir -p /tmp/x /out; \
     tar xzf "/tmp/${ASSET}" -C /tmp/x; \
     SRC=$(dirname "$(find /tmp/x -name horizon-server -type f | head -n1)"); \
-    [ -n "$SRC" ] || { echo "pas de horizon-server dans l archive" >&2; exit 1; }; \
+    [ -n "$SRC" ] || { echo "horizon-server not found in archive" >&2; exit 1; }; \
     cp -a "${SRC}/." /out/; \
-    [ -x /out/horizon-server ] && { [ -x /out/horizon-engine ] || [ -x /out/horizon-client ]; } || { echo "binaires serveur incomplets" >&2; exit 1; }; \
+    [ -x /out/horizon-server ] && { [ -x /out/horizon-engine ] || [ -x /out/horizon-client ]; } || { echo "incomplete server binaries" >&2; exit 1; }; \
     printf 'pin=%s\n' "${HORIZON_SOURCE_SHA:-latest}" > /out/.horizon-source-pin
 
 FROM debian:bookworm-slim

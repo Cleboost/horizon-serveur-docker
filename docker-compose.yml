@@ -1,4 +1,4 @@
-# Copier .env.example → .env et définir HORIZON_RESOURCES.
+# Local image build. For GHCR use compose.yaml.
 
 services:
   horizon:
@@ -15,7 +15,7 @@ services:
     stop_grace_period: 180s
     volumes:
       - horizon-data:/data
-      - ${HORIZON_RESOURCES:?Définir HORIZON_RESOURCES vers le dossier 26.3 préparé}:/opt/horizon/.local/horizon-client/26.3:ro
+      - ${HORIZON_RESOURCES:?Set HORIZON_RESOURCES to prepared 26.3 folder}:/opt/horizon/.local/horizon-client/26.3:ro
     environment:
       HORIZON_EULA: ${HORIZON_EULA:-true}
       HORIZON_WORLD: ${HORIZON_WORLD:-world}

@@ -1,6 +1,5 @@
 #!/bin/sh
-# Init (HORIZON_EULA, HORIZON_WORLD, …) puis config server.toml via env (horizon-server config set).
-# Panel : HORIZON_PANEL=true + port publié (voir docs Horizon hosting § Web panel).
+# First start: horizon-server init via HORIZON_* ; then config set from env.
 set -eu
 
 apply_config() {
@@ -48,8 +47,8 @@ apply_config() {
       panel_bind="${HORIZON_PANEL_BIND:-0.0.0.0:8130}"
       panel_public="${HORIZON_PANEL_ALLOW_PUBLIC:-true}"
       set -- "$@" "panel.bind=${panel_bind}" "panel.allow_public=${panel_public}"
-      echo "horizon-server: panel actif sur ${panel_bind} (allow_public=${panel_public})"
-      echo "horizon-server: lien login → horizon-server panel (dans le conteneur)"
+      echo "horizon-server: panel on ${panel_bind} (allow_public=${panel_public})"
+      echo "horizon-server: login link → docker exec … horizon-server panel"
       ;;
     *)
       set -- "$@" "panel.bind="
@@ -68,7 +67,7 @@ apply_config() {
 
 if [ ! -f server.toml ]; then
   if [ "${HORIZON_EULA:-}" != "true" ]; then
-    echo "horizon-server: définir HORIZON_EULA=true pour accepter https://aka.ms/MinecraftEULA" >&2
+    echo "horizon-server: set HORIZON_EULA=true to accept https://aka.ms/MinecraftEULA" >&2
     exit 1
   fi
   horizon-server init --yes || exit 1

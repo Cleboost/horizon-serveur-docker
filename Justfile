@@ -1,11 +1,9 @@
-# `just` ou `just --list` — recettes pour build/run local
-
 set dotenv-load := false
 
 default:
     @just --list
 
-# Build l'image (tarball nightly GitHub). Tags locaux alignés sur la CI.
+# Local image build from Dockerfile.
 build:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -24,9 +22,8 @@ build:
       -t "horizon-server:nightly-${short}-r${IMAGE_REVISION}" \
       .
     echo "Horizon nightly → ${sha}"
-    echo "Tags : nightly | nightly-${short} | nightly-${short}-r${IMAGE_REVISION}"
 
-# Lance le serveur (.env optionnel pour HORIZON_RESOURCES et co.).
+# Dev: build via docker-compose.yml.
 run:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -34,7 +31,14 @@ run:
     [[ -f .env ]] && args+=(--env-file .env)
     docker compose "${args[@]}" up --build
 
-# Tags GHCR pour le nightly actuel + révision image
+# Prod: pull GHCR via compose.yaml.
+up:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    args=(-f compose.yaml)
+    [[ -f .env ]] && args+=(--env-file .env)
+    docker compose "${args[@]}" up -d --pull always
+
 tags:
     #!/usr/bin/env bash
     set -euo pipefail
