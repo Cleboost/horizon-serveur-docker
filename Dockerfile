@@ -13,9 +13,15 @@ ARG HORIZON_GIT_REF
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-RUN set -eu; \
+RUN --mount=type=secret,id=github_token,required=false \
+    set -eu; \
+    AUTH=(); \
+    if [ -f /run/secrets/github_token ]; then \
+      TOKEN=$(cat /run/secrets/github_token); \
+      AUTH=(-H "Authorization: Bearer ${TOKEN}"); \
+    fi; \
     ASSET=horizon-server-linux-x86_64.tar.gz; \
-    JSON=$(curl -fsSL -H "Accept: application/vnd.github+json" \
+    JSON=$(curl -fsSL "${AUTH[@]}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
       "https://api.github.com/repos/horizon-rust/horizon/releases/tags/${HORIZON_GIT_REF}"); \
     FIELDS=$(printf '%s\n' "$JSON" | awk -v asset="$ASSET" ' \
       /"name": / { line=$0; sub(/.*"name": "/, "", line); sub(/".*/, "", line); current=line } \
@@ -25,7 +31,7 @@ RUN set -eu; \
     URL=$(printf '%s\n' "$FIELDS" | sed -n '1p'); \
     EXPECT=$(printf '%s\n' "$FIELDS" | sed -n '2p'); \
     [ -n "$URL" ] && [ -n "$EXPECT" ] || { echo "missing asset $ASSET on release ${HORIZON_GIT_REF}" >&2; exit 1; }; \
-    curl -fL --progress-bar -o "/tmp/${ASSET}" "$URL"; \
+    curl -fL "${AUTH[@]}" -H "Accept: application/octet-stream" --progress-bar -o "/tmp/${ASSET}" "$URL"; \
     GOT=$(sha256sum "/tmp/${ASSET}" | awk '{print $1}'); \
     [ "$GOT" = "$EXPECT" ] || { echo "SHA-256 mismatch (got $GOT, expected $EXPECT)" >&2; exit 1; }; \
     mkdir -p /extract; \

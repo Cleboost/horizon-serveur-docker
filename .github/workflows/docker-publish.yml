@@ -89,6 +89,8 @@ jobs:
           cache-to: |
             type=registry,ref=${{ env.REGISTRY }}/${{ needs.meta.outputs.image_name }}:buildcache-amd64,mode=max,compression=zstd,oci-mediatypes=true
             type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}-amd64
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
 
   build-arm64:
     needs: meta
@@ -123,6 +125,8 @@ jobs:
           cache-to: |
             type=registry,ref=${{ env.REGISTRY }}/${{ needs.meta.outputs.image_name }}:buildcache-arm64,mode=max,compression=zstd,oci-mediatypes=true
             type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}-arm64
+          secrets: |
+            github_token=${{ secrets.GITHUB_TOKEN }}
 
   merge:
     needs: [meta, build-amd64, build-arm64]
