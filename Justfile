@@ -23,21 +23,13 @@ build:
       .
     echo "Horizon nightly → ${sha}"
 
-# Dev: build via docker-compose.yml.
+# Dev: local build (docker-compose.yml).
 run:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    args=(--env-file versions.env)
-    [[ -f .env ]] && args+=(--env-file .env)
-    docker compose "${args[@]}" up --build
+    docker compose -f docker-compose.yml --env-file versions.env up --build
 
-# Prod: pull GHCR via compose.yaml.
+# Prod: pull GHCR (game files in ./prepared-26.3/).
 up:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    args=(-f compose.yaml)
-    [[ -f .env ]] && args+=(--env-file .env)
-    docker compose "${args[@]}" up -d --pull always
+    docker compose up -d --pull always
 
 tags:
     #!/usr/bin/env bash

@@ -1,47 +1,34 @@
-# GHCR image (no local build). Quick start:
-#   HORIZON_RESOURCES=/path/to/prepared/26.3 docker compose -f compose.yaml up -d
-# Or: cp .env.example .env  then  docker compose -f compose.yaml up -d
-# Pin: HORIZON_IMAGE=nightly-<sha7>-r<N> in .env
+# Game files: copy horizon-prepare 26.3 output into ./prepared-26.3/ then docker compose up -d
 
 name: horizon-server
 
 services:
   horizon:
-    image: ghcr.io/cleboost/horizon-serveur-docker:${HORIZON_IMAGE:-nightly}
+    image: ghcr.io/cleboost/horizon-serveur-docker:nightly
     pull_policy: always
     container_name: horizon-server
     restart: unless-stopped
     ports:
-      - "${HORIZON_PORT:-25565}:25565"
-      - "${HORIZON_PANEL_PUBLISH:-127.0.0.1:8130:8130}"
+      - "25565:25565"
     stop_grace_period: 180s
     volumes:
       - horizon-data:/data
-      - ${HORIZON_RESOURCES:?Set HORIZON_RESOURCES to prepared 26.3 folder (see .env.example)}:/opt/horizon/.local/horizon-client/26.3:ro
+      - ./prepared-26.3:/opt/horizon/.local/horizon-client/26.3:ro
     environment:
-      HORIZON_EULA: ${HORIZON_EULA:-true}
-      HORIZON_WORLD: ${HORIZON_WORLD:-world}
-      HORIZON_SEED: ${HORIZON_SEED:-}
-      HORIZON_PORT: ${HORIZON_PORT:-25565}
-      HORIZON_WHITELIST: ${HORIZON_WHITELIST:-true}
-      HORIZON_PLAYERS: ${HORIZON_PLAYERS:-}
-      HORIZON_OP: ${HORIZON_OP:-}
-      HORIZON_ONLINE: ${HORIZON_ONLINE:-true}
-      HORIZON_MOTD: ${HORIZON_MOTD:-}
-      HORIZON_MAX_PLAYERS: ${HORIZON_MAX_PLAYERS:-}
-      HORIZON_BIND: ${HORIZON_BIND:-}
-      HORIZON_VIEW_DISTANCE: ${HORIZON_VIEW_DISTANCE:-}
-      HORIZON_SIMULATION_DISTANCE: ${HORIZON_SIMULATION_DISTANCE:-}
-      HORIZON_ENFORCE_WHITELIST: ${HORIZON_ENFORCE_WHITELIST:-}
-      HORIZON_GAME_MODE: ${HORIZON_GAME_MODE:-}
-      HORIZON_DIFFICULTY: ${HORIZON_DIFFICULTY:-}
-      HORIZON_ENGINE_LOW_MEMORY: ${HORIZON_ENGINE_LOW_MEMORY:-}
-      HORIZON_BACKUPS_EVERY: ${HORIZON_BACKUPS_EVERY:-}
-      HORIZON_BACKUPS_KEEP: ${HORIZON_BACKUPS_KEEP:-}
-      HORIZON_PANEL: ${HORIZON_PANEL:-false}
-      HORIZON_PANEL_BIND: ${HORIZON_PANEL_BIND:-}
-      HORIZON_PANEL_ALLOW_PUBLIC: ${HORIZON_PANEL_ALLOW_PUBLIC:-}
-      HORIZON_CONFIG: ${HORIZON_CONFIG:-}
+      HORIZON_EULA: "true"
+      HORIZON_WORLD: world
+      HORIZON_PORT: "25565"
+      HORIZON_WHITELIST: "true"
+      HORIZON_ONLINE: "true"
+      # HORIZON_SEED: "12345"
+      # HORIZON_PLAYERS: "Steve,Alex"
+      # HORIZON_OP: "Steve"
+      # HORIZON_MOTD: "My Horizon server"
+      # HORIZON_MAX_PLAYERS: "20"
+      # HORIZON_PANEL: "true"
+      # HORIZON_PANEL_BIND: "0.0.0.0:8130"
+      # HORIZON_PANEL_ALLOW_PUBLIC: "true"
+      # HORIZON_CONFIG: "properties.spawn-protection=16"
 
 volumes:
   horizon-data:
