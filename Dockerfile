@@ -15,14 +15,16 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 RUN --mount=type=secret,id=github_token,required=false \
     set -eu; \
-    AUTH=(); \
-    if [ -f /run/secrets/github_token ]; then \
-      TOKEN=$(cat /run/secrets/github_token); \
-      AUTH=(-H "Authorization: Bearer ${TOKEN}"); \
-    fi; \
+    GH_TOKEN=""; \
+    if [ -f /run/secrets/github_token ]; then GH_TOKEN=$(cat /run/secrets/github_token); fi; \
     ASSET=horizon-server-linux-x86_64.tar.gz; \
-    JSON=$(curl -fsSL "${AUTH[@]}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
-      "https://api.github.com/repos/horizon-rust/horizon/releases/tags/${HORIZON_GIT_REF}"); \
+    if [ -n "$GH_TOKEN" ]; then \
+      JSON=$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+        "https://api.github.com/repos/horizon-rust/horizon/releases/tags/${HORIZON_GIT_REF}"); \
+    else \
+      JSON=$(curl -fsSL -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28" \
+        "https://api.github.com/repos/horizon-rust/horizon/releases/tags/${HORIZON_GIT_REF}"); \
+    fi; \
     FIELDS=$(printf '%s\n' "$JSON" | awk -v asset="$ASSET" ' \
       /"name": / { line=$0; sub(/.*"name": "/, "", line); sub(/".*/, "", line); current=line } \
       current == asset && /"digest": / { line=$0; sub(/.*"digest": "sha256:/, "", line); sub(/".*/, "", line); digest=line } \
@@ -31,7 +33,11 @@ RUN --mount=type=secret,id=github_token,required=false \
     URL=$(printf '%s\n' "$FIELDS" | sed -n '1p'); \
     EXPECT=$(printf '%s\n' "$FIELDS" | sed -n '2p'); \
     [ -n "$URL" ] && [ -n "$EXPECT" ] || { echo "missing asset $ASSET on release ${HORIZON_GIT_REF}" >&2; exit 1; }; \
-    curl -fL "${AUTH[@]}" -H "Accept: application/octet-stream" --progress-bar -o "/tmp/${ASSET}" "$URL"; \
+    if [ -n "$GH_TOKEN" ]; then \
+      curl -fL -H "Authorization: Bearer ${GH_TOKEN}" -H "Accept: application/octet-stream" --progress-bar -o "/tmp/${ASSET}" "$URL"; \
+    else \
+      curl -fL --progress-bar -o "/tmp/${ASSET}" "$URL"; \
+    fi; \
     GOT=$(sha256sum "/tmp/${ASSET}" | awk '{print $1}'); \
     [ "$GOT" = "$EXPECT" ] || { echo "SHA-256 mismatch (got $GOT, expected $EXPECT)" >&2; exit 1; }; \
     mkdir -p /extract; \
