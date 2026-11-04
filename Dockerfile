@@ -1,36 +1,42 @@
 # syntax=docker/dockerfile:1
-# Image horizon-server — build depuis https://github.com/horizon-rust/horizon
-# (même logique que packaging/server/Dockerfile upstream, sans copier tout le monorepo ici).
+# Binaires = tarball officielle horizon-server-linux-x86_64 (Nightly GitHub).
+# Pas de compile Rust ici : le serveur tourne avec horizon-engine (= client sans audio/contrôleurs),
+# déjà buildé par Horizon ; compiler nous-mêmes retombe sur horizon-client-render, symphonia, etc.
 #
 # Build local : just build
-# Pas de fichiers Minecraft dans l'image : monter le dossier 26.3 préparé (horizon-prepare).
 
 ARG HORIZON_GIT_REF=nightly
 ARG HORIZON_SOURCE_SHA=
 ARG IMAGE_REVISION=0
 
-FROM rust:1-slim-bookworm AS build
+FROM debian:bookworm-slim AS horizon
 ARG HORIZON_GIT_REF
 ARG HORIZON_SOURCE_SHA
-WORKDIR /src
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git ca-certificates pkg-config libssl-dev \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
-# SHA en CI : layer invalidée seulement quand le tag nightly bouge (sinon recompile inutile).
-RUN git clone --depth 1 https://github.com/horizon-rust/horizon.git . \
-    && if [ -n "${HORIZON_SOURCE_SHA}" ]; then \
-         git fetch --depth 1 origin "${HORIZON_SOURCE_SHA}" && git checkout FETCH_HEAD; \
-       else \
-         git fetch --depth 1 origin "${HORIZON_GIT_REF}" && git checkout FETCH_HEAD; \
-       fi
-RUN --mount=type=cache,target=/usr/local/cargo/registry,id=horizon-cargo-registry,sharing=locked \
-    --mount=type=cache,target=/usr/local/cargo/git,id=horizon-cargo-git,sharing=locked \
-    --mount=type=cache,target=/src/target,id=horizon-target,sharing=locked \
-    cargo build --release --locked -p horizon-client --no-default-features --bin horizon-client \
-    && cargo build --release --locked -p horizon-server --bin horizon-server \
-    && mkdir /out \
-    && cp target/release/horizon-client /out/horizon-engine \
-    && cp target/release/horizon-server /out/
+RUN set -eu; \
+    ASSET=horizon-server-linux-x86_64.tar.gz; \
+    JSON=$(curl -fsSL -H "Accept: application/vnd.github+json" \
+      "https://api.github.com/repos/horizon-rust/horizon/releases/tags/${HORIZON_GIT_REF}"); \
+    FIELDS=$(printf '%s\n' "$JSON" | awk -v asset="$ASSET" ' \
+      /"name": / { line=$0; sub(/.*"name": "/, "", line); sub(/".*/, "", line); current=line } \
+      current == asset && /"digest": / { line=$0; sub(/.*"digest": "sha256:/, "", line); sub(/".*/, "", line); digest=line } \
+      current == asset && /"browser_download_url": / { line=$0; sub(/.*"browser_download_url": "/, "", line); sub(/".*/, "", line); url=line } \
+      END { print url; print digest }'); \
+    URL=$(printf '%s\n' "$FIELDS" | sed -n '1p'); \
+    EXPECT=$(printf '%s\n' "$FIELDS" | sed -n '2p'); \
+    [ -n "$URL" ] && [ -n "$EXPECT" ] || { echo "asset $ASSET introuvable sur release ${HORIZON_GIT_REF}" >&2; exit 1; }; \
+    curl -fL --progress-bar -o "/tmp/${ASSET}" "$URL"; \
+    GOT=$(sha256sum "/tmp/${ASSET}" | awk '{print $1}'); \
+    [ "$GOT" = "$EXPECT" ] || { echo "SHA-256 invalide (got $GOT, expected $EXPECT)" >&2; exit 1; }; \
+    mkdir -p /tmp/x /out; \
+    tar xzf "/tmp/${ASSET}" -C /tmp/x; \
+    SRC=$(dirname "$(find /tmp/x -name horizon-server -type f | head -n1)"); \
+    [ -n "$SRC" ] || { echo "pas de horizon-server dans l archive" >&2; exit 1; }; \
+    cp -a "${SRC}/." /out/; \
+    [ -x /out/horizon-server ] && { [ -x /out/horizon-engine ] || [ -x /out/horizon-client ]; } || { echo "binaires serveur incomplets" >&2; exit 1; }; \
+    printf 'pin=%s\n' "${HORIZON_SOURCE_SHA:-latest}" > /out/.horizon-source-pin
 
 FROM debian:bookworm-slim
 ARG HORIZON_GIT_REF
@@ -47,7 +53,7 @@ RUN apt-get update \
     && useradd --system --home-dir /data --shell /usr/sbin/nologin horizon \
     && mkdir -p /data /opt/horizon/.local/horizon-client \
     && chown horizon:horizon /data
-COPY --from=build /out/ /opt/horizon/
+COPY --from=horizon /out/ /opt/horizon/
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENV PATH=/opt/horizon:$PATH \
