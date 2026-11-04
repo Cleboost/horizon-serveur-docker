@@ -40,13 +40,14 @@ RUN set -eu; \
 
 FROM debian:bookworm-slim
 ARG HORIZON_GIT_REF
+ARG HORIZON_SOURCE_SHA
 ARG IMAGE_REVISION
 LABEL org.opencontainers.image.source="https://github.com/Cleboost/horizon-serveur-docker" \
       org.opencontainers.image.title="horizon-server" \
       org.opencontainers.image.description="Horizon dedicated server (no Minecraft assets in image)" \
       io.horizon.git-ref="${HORIZON_GIT_REF}" \
-      io.horizon.image.revision="${IMAGE_REVISION}" \
-      io.horizon.version="${HORIZON_GIT_REF}-r${IMAGE_REVISION}"
+      io.horizon.source.sha="${HORIZON_SOURCE_SHA}" \
+      io.horizon.image.revision="${IMAGE_REVISION}"
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates \
     && rm -rf /var/lib/apt/lists/* \

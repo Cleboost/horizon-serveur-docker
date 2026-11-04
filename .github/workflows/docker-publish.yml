@@ -33,13 +33,20 @@ jobs:
           set +a
           echo "HORIZON_GIT_REF=nightly" >> "$GITHUB_ENV"
           echo "IMAGE_REVISION=$IMAGE_REVISION" >> "$GITHUB_ENV"
-          echo "VERSION_TAG=nightly-r${IMAGE_REVISION}" >> "$GITHUB_ENV"
 
       - name: SHA du tag nightly (Horizon)
         run: |
           sha=$(git ls-remote https://github.com/horizon-rust/horizon.git refs/tags/nightly | awk '{print $1}')
           [ -n "$sha" ] || { echo "tag nightly introuvable" >&2; exit 1; }
+          short=${sha:0:7}
           echo "HORIZON_SOURCE_SHA=$sha" >> "$GITHUB_ENV"
+          echo "HORIZON_SOURCE_SHORT=$short" >> "$GITHUB_ENV"
+          {
+            echo "### Tags image"
+            echo "- \`nightly\` — dernier build (pull latest)"
+            echo "- \`nightly-${short}\` — Horizon \`${sha}\`"
+            echo "- \`nightly-${short}-r${IMAGE_REVISION}\` — immuable (upstream + révision Docker)"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -54,11 +61,15 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ env.VERSION_TAG }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly-${{ env.HORIZON_SOURCE_SHORT }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:nightly-${{ env.HORIZON_SOURCE_SHORT }}-r${{ env.IMAGE_REVISION }}
           labels: |
+            org.opencontainers.image.version=nightly-${{ env.HORIZON_SOURCE_SHORT }}-r${{ env.IMAGE_REVISION }}
             io.horizon.git-ref=${{ env.HORIZON_GIT_REF }}
-            io.horizon.image.revision=${{ env.IMAGE_REVISION }}
             io.horizon.source.sha=${{ env.HORIZON_SOURCE_SHA }}
+            io.horizon.source.short=${{ env.HORIZON_SOURCE_SHORT }}
+            io.horizon.image.revision=${{ env.IMAGE_REVISION }}
           build-args: |
             HORIZON_GIT_REF=${{ env.HORIZON_GIT_REF }}
             HORIZON_SOURCE_SHA=${{ env.HORIZON_SOURCE_SHA }}
