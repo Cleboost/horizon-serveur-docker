@@ -3,6 +3,12 @@
 # Init flags match https://github.com/horizon-rust/horizon/blob/main/docs/hosting.md
 set -eu
 
+# Host bind mount ./data is often owned by the deploy user; horizon is uid 999.
+if [ "$(id -u)" = 0 ]; then
+  chown horizon:horizon /data
+  exec gosu horizon:horizon /entrypoint.sh
+fi
+
 run_init() {
   set -- horizon-server init --yes --eula
 

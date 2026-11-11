@@ -93,7 +93,7 @@ LABEL org.opencontainers.image.source="https://github.com/Cleboost/horizon-serve
       io.horizon.source.sha="${HORIZON_SOURCE_SHA}" \
       io.horizon.image.revision="${IMAGE_REVISION}"
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates \
+    && apt-get install -y --no-install-recommends ca-certificates gosu \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --system --home-dir /data --shell /usr/sbin/nologin horizon \
     && mkdir -p /data /opt/horizon/.local/horizon-client \
@@ -105,7 +105,6 @@ ENV PATH=/opt/horizon:$PATH \
 WORKDIR /data
 VOLUME /data
 EXPOSE 25565 8130
-USER horizon
 STOPSIGNAL SIGTERM
 ENTRYPOINT ["/entrypoint.sh"]
 

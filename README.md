@@ -23,7 +23,7 @@ Published on GHCR: `ghcr.io/cleboost/horizon-serveur-docker:nightly` (multi-arch
 
 3. Accept the EULA via Compose (`HORIZON_EULA: "true"` in `docker-compose.yml`).
 
-Server data (world, `server.toml`, logs, backups) lives in **`./data`** next to this repo — not in an anonymous Docker volume.
+Server data (world, `server.toml`, logs, backups) lives in **`./data`** next to this repo — not in an anonymous Docker volume. On start, the entrypoint (as root) sets ownership of `/data` to the `horizon` user so a fresh host folder does not need manual `chown`.
 
 ## Configuration
 
