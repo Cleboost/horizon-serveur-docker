@@ -41,11 +41,15 @@ Extra keys: space-separated `KEY=value` in `HORIZON_CONFIG`.
 
 ## Console and commands
 
-The container runs `horizon-server run` in the background (`docker compose up -d`). **Do not use `docker attach` for the game console** — stdin is not wired for interactive commands, and **Ctrl+C can stop the server**.
+The container runs `horizon-server run` in the foreground with a TTY (`stdin_open` + `tty` in Compose), so you can attach after `docker compose up -d`:
 
-Use Horizon’s CLI inside the running container:
+```bash
+docker attach horizon-server
+```
 
-**Interactive console** (logs, TPS, command line — detach with Ctrl+D):
+Detach without stopping the server: **Ctrl+P**, **Ctrl+Q**. **Ctrl+C** sends SIGINT and can stop the server.
+
+**Alternative** — Horizon console via exec (detach with Ctrl+D):
 
 ```bash
 docker exec -it horizon-server horizon-server console

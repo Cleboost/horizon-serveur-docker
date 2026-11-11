@@ -9,6 +9,8 @@ services:
     pull_policy: always
     container_name: horizon-server
     restart: unless-stopped
+    stdin_open: true
+    tty: true
     ports:
       - "25565:25565"
     stop_grace_period: 180s
