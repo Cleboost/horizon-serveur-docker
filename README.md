@@ -21,13 +21,13 @@ Published on GHCR: `ghcr.io/cleboost/horizon-serveur-docker:nightly` (multi-arch
    # or: docker compose up -d --pull always
    ```
 
-3. Accept the EULA via Compose (`HORIZON_EULA: "true"` in `compose.yaml`).
+3. Accept the EULA via Compose (`HORIZON_EULA: "true"` in `docker-compose.yml`).
 
 Server data (world, `server.toml`, logs, backups) lives in **`./data`** next to this repo — not in an anonymous Docker volume.
 
 ## Configuration
 
-Environment variables in `compose.yaml` are applied on every start via `horizon-server config set`. On first boot, `entrypoint.sh` runs `horizon-server init` with the same settings (see [Horizon hosting docs](https://github.com/horizon-rust/horizon/blob/main/docs/hosting.md)).
+Environment variables in `docker-compose.yml` are applied on every start via `horizon-server config set`. On first boot, `entrypoint.sh` runs `horizon-server init` with the same settings (see [Horizon hosting docs](https://github.com/horizon-rust/horizon/blob/main/docs/hosting.md)).
 
 | Variable | Effect |
 |----------|--------|
@@ -72,7 +72,7 @@ Full reference: [hosting.md — Running the server](https://github.com/horizon-r
 
 ```bash
 just build    # image horizon-server:local
-just run      # docker-compose.yml with local build
+just run      # local image + docker compose up (no GHCR pull)
 ```
 
 CI builds and pushes tags listed in `just tags` (`nightly`, `nightly-<sha7>`, `nightly-<sha7>-r<N>` from `versions.env`).
@@ -82,6 +82,5 @@ CI builds and pushes tags listed in `just tags` (`nightly`, `nightly-<sha7>`, `n
 | Path | Role |
 |------|------|
 | `./prepared-26.3/` | Mojang/Horizon game files (host, read-only mount) |
-| `./data/` | Server state (world, config, logs) — gitignored except `.gitkeep` |
-| `compose.yaml` | Production: pull from GHCR |
-| `docker-compose.yml` | Local build |
+| `./data/` | Server state (`server.toml`, `world/`, logs) — gitignored except `.gitkeep` |
+| `docker-compose.yml` | Pull GHCR image and run (`docker compose up -d`) |

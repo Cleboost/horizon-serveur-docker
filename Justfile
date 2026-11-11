@@ -23,9 +23,13 @@ build:
       .
     echo "Horizon nightly → ${sha}"
 
-# Dev: local build (docker-compose.yml).
+# Dev: build locally, tag as nightly, start without pulling GHCR.
 run:
-    docker compose -f docker-compose.yml --env-file versions.env up --build
+    #!/usr/bin/env bash
+    set -euo pipefail
+    just build
+    docker tag horizon-server:local ghcr.io/cleboost/horizon-serveur-docker:nightly
+    docker compose up -d --pull never
 
 # Prod: pull GHCR (game files in ./prepared-26.3/).
 up:

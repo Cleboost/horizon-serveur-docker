@@ -1,18 +1,19 @@
-# Local build. Same settings as compose.yaml.
+# Horizon dedicated server — pull image, mount ./data + ./prepared-26.3, then:
+#   docker compose up -d
+
+name: horizon-server
 
 services:
   horizon:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        HORIZON_GIT_REF: ${HORIZON_GIT_REF:-nightly}
-        IMAGE_REVISION: ${IMAGE_REVISION:-1}
-    image: horizon-server:local
+    image: ghcr.io/cleboost/horizon-serveur-docker:nightly
+    pull_policy: always
+    container_name: horizon-server
+    restart: unless-stopped
     ports:
       - "25565:25565"
     stop_grace_period: 180s
     volumes:
+      # ./data/server.toml (config), ./data/world/ (map), logs, backups, …
       - ./data:/data
       - ./prepared-26.3:/opt/horizon/.local/horizon-client/26.3:ro
     environment:
@@ -21,8 +22,8 @@ services:
       HORIZON_PORT: "25565"
       HORIZON_WHITELIST: "true"
       HORIZON_ONLINE: "true"
-      # HORIZON_WHITELIST: "false"
-      # HORIZON_ONLINE: "false"
+      # HORIZON_WHITELIST: "false"  → --no-whitelist + server.whitelist=false
+      # HORIZON_ONLINE: "false"      → --offline + server.online_mode=false
       # HORIZON_SEED: "12345"
       # HORIZON_PLAYERS: "Steve,Alex"
       # HORIZON_OP: "Steve"
