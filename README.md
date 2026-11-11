@@ -2,7 +2,7 @@
 
 Docker image and Compose setup for a [Horizon](https://github.com/horizon-rust/horizon) dedicated server (Minecraft Java **26.3**). The image contains **Horizon only** — game assets are mounted from your host.
 
-Published on GHCR: `ghcr.io/cleboost/horizon-serveur-docker:nightly` (multi-arch **amd64** + **arm64**).
+Published on GHCR: `ghcr.io/cleboost/horizon-serveur-docker` (multi-arch **amd64** + **arm64**).
 
 ## Quick start
 
@@ -79,7 +79,15 @@ just build    # image horizon-server:local
 just run      # local image + docker compose up (no GHCR pull)
 ```
 
-CI builds and pushes tags listed in `just tags` (`nightly`, `nightly-<sha7>`, `nightly-<sha7>-r<N>` from `versions.env`).
+## Image tags
+
+| Tag | Meaning |
+|-----|---------|
+| `latest` | Last successful build on `main` (default in `docker-compose.yml`) |
+| `nightly` | Same as `latest` today — Horizon channel is `HORIZON_GIT_REF=nightly` in `versions.env` |
+| `1.0.0`, … | **Semver of this Docker packaging** — bump `IMAGE_VERSION` in `versions.env` when you change the image; pin prod to this |
+
+Which Horizon engine commit is inside the image: `docker inspect … --format '{{index .Config.Labels "io.horizon.source.sha"}}'`. List published tags with `just tags`.
 
 ## Layout
 

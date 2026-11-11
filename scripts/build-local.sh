@@ -4,18 +4,15 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck disable=SC1091
 source "$root/versions.env"
 
-ref_slug=$(printf '%s' "$HORIZON_GIT_REF" | tr '/:' '_')
-export VERSION_TAG="${ref_slug}-r${IMAGE_REVISION}"
-
 export DOCKER_BUILDKIT=1
 
 case "${1:-build}" in
   build)
     docker build \
       --build-arg "HORIZON_GIT_REF=${HORIZON_GIT_REF}" \
-      --build-arg "IMAGE_REVISION=${IMAGE_REVISION}" \
+      --build-arg "IMAGE_VERSION=${IMAGE_VERSION}" \
       -t "horizon-server:local" \
-      -t "horizon-server:${VERSION_TAG}" \
+      -t "horizon-server:${IMAGE_VERSION}" \
       "$root"
     ;;
   compose)

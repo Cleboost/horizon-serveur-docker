@@ -5,7 +5,7 @@ name: horizon-server
 
 services:
   horizon:
-    image: ghcr.io/cleboost/horizon-serveur-docker:nightly
+    image: ghcr.io/cleboost/horizon-serveur-docker:latest
     pull_policy: always
     container_name: horizon-server
     restart: unless-stopped

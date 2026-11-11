@@ -8,27 +8,23 @@ build:
     #!/usr/bin/env bash
     set -euo pipefail
     source versions.env
-    HORIZON_GIT_REF=nightly
-    sha=$(git ls-remote https://github.com/horizon-rust/horizon.git refs/tags/nightly | awk '{print $1}')
-    short=${sha:0:7}
+    sha=$(git ls-remote https://github.com/horizon-rust/horizon.git refs/tags/"${HORIZON_GIT_REF}" | awk '{print $1}')
     export DOCKER_BUILDKIT=1
     docker build \
       --build-arg "HORIZON_GIT_REF=${HORIZON_GIT_REF}" \
       --build-arg "HORIZON_SOURCE_SHA=${sha}" \
-      --build-arg "IMAGE_REVISION=${IMAGE_REVISION}" \
+      --build-arg "IMAGE_VERSION=${IMAGE_VERSION}" \
       -t horizon-server:local \
-      -t "horizon-server:nightly" \
-      -t "horizon-server:nightly-${short}" \
-      -t "horizon-server:nightly-${short}-r${IMAGE_REVISION}" \
+      -t "horizon-server:${IMAGE_VERSION}" \
       .
-    echo "Horizon nightly → ${sha}"
+    echo "packaging ${IMAGE_VERSION} · Horizon ${HORIZON_GIT_REF} → ${sha}"
 
 # Dev: build locally, tag as nightly, start without pulling GHCR.
 run:
     #!/usr/bin/env bash
     set -euo pipefail
     just build
-    docker tag horizon-server:local ghcr.io/cleboost/horizon-serveur-docker:nightly
+    docker tag horizon-server:local ghcr.io/cleboost/horizon-serveur-docker:latest
     docker compose up -d --pull never
 
 # Prod: pull GHCR (game files in ./prepared-26.3/).
@@ -78,9 +74,7 @@ tags:
     #!/usr/bin/env bash
     set -euo pipefail
     source versions.env
-    sha=$(git ls-remote https://github.com/horizon-rust/horizon.git refs/tags/nightly | awk '{print $1}')
-    short=${sha:0:7}
     repo=ghcr.io/cleboost/horizon-serveur-docker
+    echo "${repo}:latest"
     echo "${repo}:nightly"
-    echo "${repo}:nightly-${short}"
-    echo "${repo}:nightly-${short}-r${IMAGE_REVISION}"
+    echo "${repo}:${IMAGE_VERSION}"

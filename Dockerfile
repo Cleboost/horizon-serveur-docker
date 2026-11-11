@@ -6,7 +6,7 @@
 ARG HORIZON_GIT_REF=nightly
 ARG HORIZON_SOURCE_SHA=
 ARG HORIZON_VERSION=nightly
-ARG IMAGE_REVISION=0
+ARG IMAGE_VERSION=0.0.0
 
 FROM debian:bookworm-slim AS horizon-fetch
 ARG HORIZON_GIT_REF
@@ -85,13 +85,13 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,sharing=locked \
 FROM debian:bookworm-slim AS runtime-base
 ARG HORIZON_GIT_REF
 ARG HORIZON_SOURCE_SHA
-ARG IMAGE_REVISION
+ARG IMAGE_VERSION
 LABEL org.opencontainers.image.source="https://github.com/Cleboost/horizon-serveur-docker" \
       org.opencontainers.image.title="horizon-server" \
+      org.opencontainers.image.version="${IMAGE_VERSION}" \
       org.opencontainers.image.description="Horizon dedicated server (no Minecraft assets in image)" \
       io.horizon.git-ref="${HORIZON_GIT_REF}" \
-      io.horizon.source.sha="${HORIZON_SOURCE_SHA}" \
-      io.horizon.image.revision="${IMAGE_REVISION}"
+      io.horizon.source.sha="${HORIZON_SOURCE_SHA}"
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates gosu \
     && rm -rf /var/lib/apt/lists/* \

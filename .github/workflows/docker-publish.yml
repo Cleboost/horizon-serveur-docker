@@ -23,7 +23,7 @@ jobs:
       horizon_source_sha: ${{ steps.horizon.outputs.sha }}
       horizon_source_short: ${{ steps.horizon.outputs.short }}
       horizon_version: ${{ steps.horizon.outputs.version }}
-      image_revision: ${{ steps.versions.outputs.image_revision }}
+      image_version: ${{ steps.versions.outputs.image_version }}
     steps:
       - uses: actions/checkout@v4
       - id: names
@@ -34,7 +34,7 @@ jobs:
           # shellcheck disable=SC1091
           source versions.env
           set +a
-          echo "image_revision=$IMAGE_REVISION" >> "$GITHUB_OUTPUT"
+          echo "image_version=$IMAGE_VERSION" >> "$GITHUB_OUTPUT"
       - id: horizon
         run: |
           sha=$(git ls-remote https://github.com/horizon-rust/horizon.git refs/tags/nightly | awk '{print $1}')
@@ -50,9 +50,10 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           {
             echo "### Image tags (linux/amd64 + linux/arm64)"
-            echo "- \`nightly\` — manifest list"
-            echo "- \`nightly-${short}\` — Horizon \`${sha}\`"
-            echo "- \`nightly-${short}-r${{ steps.versions.outputs.image_revision }}\` — pinned packaging"
+            echo "- \`latest\` — last main build (moving)"
+            echo "- \`nightly\` — alias of \`latest\` (Horizon channel \`nightly\`)"
+            echo "- \`${{ steps.versions.outputs.image_version }}\` — pinned packaging semver"
+            echo "- Horizon engine at push time: \`${sha}\` (\`${short}\`)"
             echo "- amd64: upstream tarball · arm64: compile \`${version}\` at \`${short}\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -82,7 +83,7 @@ jobs:
             HORIZON_GIT_REF=${{ needs.meta.outputs.horizon_git_ref }}
             HORIZON_SOURCE_SHA=${{ needs.meta.outputs.horizon_source_sha }}
             HORIZON_VERSION=${{ needs.meta.outputs.horizon_version }}
-            IMAGE_REVISION=${{ needs.meta.outputs.image_revision }}
+            IMAGE_VERSION=${{ needs.meta.outputs.image_version }}
           cache-from: |
             type=registry,ref=${{ env.REGISTRY }}/${{ needs.meta.outputs.image_name }}:buildcache-amd64
             type=gha,scope=${{ env.CACHE_SCOPE }}-amd64
@@ -118,7 +119,7 @@ jobs:
             HORIZON_GIT_REF=${{ needs.meta.outputs.horizon_git_ref }}
             HORIZON_SOURCE_SHA=${{ needs.meta.outputs.horizon_source_sha }}
             HORIZON_VERSION=${{ needs.meta.outputs.horizon_version }}
-            IMAGE_REVISION=${{ needs.meta.outputs.image_revision }}
+            IMAGE_VERSION=${{ needs.meta.outputs.image_version }}
           cache-from: |
             type=registry,ref=${{ env.REGISTRY }}/${{ needs.meta.outputs.image_name }}:buildcache-arm64
             type=gha,scope=${{ env.CACHE_SCOPE }}-arm64
@@ -142,11 +143,10 @@ jobs:
       - name: Publish multi-arch manifest
         run: |
           repo=${{ env.REGISTRY }}/${{ needs.meta.outputs.image_name }}
-          short=${{ needs.meta.outputs.horizon_source_short }}
-          rev=${{ needs.meta.outputs.image_revision }}
+          ver=${{ needs.meta.outputs.image_version }}
           docker buildx imagetools create \
+            -t "${repo}:latest" \
             -t "${repo}:nightly" \
-            -t "${repo}:nightly-${short}" \
-            -t "${repo}:nightly-${short}-r${rev}" \
+            -t "${repo}:${ver}" \
             "${repo}:build-amd64" \
             "${repo}:build-arm64"
